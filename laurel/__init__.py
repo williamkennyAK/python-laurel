@@ -86,34 +86,38 @@ def callback(link, data):
                     device.callback(device.cbargs)
 
 class laurel:
-    def __init__(self, user, password):
+    def __init__(self, user, password, use_mesh=1):
         (self.auth, self.userid) = authenticate(user, password)
         self.devices = []
         self.networks = []
+        self.mesh=use_mesh
         mesh_networks = get_devices(self.auth, self.userid)
         for mesh in mesh_networks:
             network = None
             devices = []
             properties = get_properties(self.auth, mesh['product_id'],
                                         mesh['id'])
-            for bulb in properties['bulbsArray']:
-                id = int(bulb['deviceID'][-3:])
-                mac = [bulb['mac'][i:i+2] for i in range(0, 12, 2)]
-                mac = "%s:%s:%s:%s:%s:%s" % (mac[5], mac[4], mac[3], mac[2], mac[1], mac[0])
-                if network is None:
-                    network = laurel_mesh(mesh['mac'], mesh['access_key'])
-                device = laurel_device(network, {'name': bulb['displayName'], 'mac': mac, 'id': id, 'type': bulb['deviceType']})
-                network.devices.append(device)
-                self.devices.append(device)
-                
+            if 'error' in properties:
+                continue
+            else:
+                for bulb in properties['bulbsArray']:
+                    id = int(bulb['deviceID'][-3:])
+                    mac = [bulb['mac'][i:i+2] for i in range(0, 12, 2)]
+                    mac = "%s:%s:%s:%s:%s:%s" % (mac[5], mac[4], mac[3], mac[2], mac[1], mac[0])
+                    if network is None:
+                        network = laurel_mesh(mesh['mac'], mesh['access_key'], self.mesh)
+                    device = laurel_device(network, {'name': bulb['displayName'], 'mac': mac, 'id': id, 'type': bulb['deviceType']})
+                    network.devices.append(device)
+                    self.devices.append(device)
             self.networks.append(network)
 
 class laurel_mesh:
-    def __init__(self, address, password):
+    def __init__(self, address, password, use_mesh=1):
         self.address = str(address)
         self.password = str(password)
         self.devices = []
         self.link = None
+        self.mesh = use_mesh
 
     def connect(self):
         if self.link != None:
@@ -122,7 +126,12 @@ class laurel_mesh:
         for device in self.devices:
             # Try each device in turn - we only need to connect to one to be
             # on the mesh
-            try:                
+            try:
+                print('name    : %s' % device.name)
+                print('type    : %s' % device.type)
+                print('mac     : %s' % device.mac)
+                print('address : %s' % self.address) 
+                print('password: %s' % self.password)
                 self.link = dimond.dimond(0x0211, device.mac, self.address, self.password, self, callback)
                 self.link.connect()
                 break
